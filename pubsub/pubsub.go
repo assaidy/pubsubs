@@ -14,17 +14,14 @@ type Pubsub interface {
 
 // Publisher defines the interface for sending messages to a channel.
 type Publisher interface {
-	// Publish sends a payload to the specified channel. If a codec is provided,
-	// it is applied first to marshal the payload before publishing.
+	// Publish sends a payload to the specified channel.
 	Publish(ctx context.Context, channel string, payload []byte) error
 }
 
 // Subscriber defines the interface for receiving messages from a channel.
 type Subscriber interface {
 	// Subscribe registers a handler for messages on the specified channel.
-	// If a codec is provided, it is applied first to unmarshal the payload
-	// before passing it to the handler.
-	Subscribe(ctx context.Context, channel string, handler Handler) (Subscription, error)
+	Subscribe(ctx context.Context, channel string, handler Handler) Subscription
 }
 
 // Handler is a function that processes a message payload.

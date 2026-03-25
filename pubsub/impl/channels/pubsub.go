@@ -44,8 +44,7 @@ func New(config ...Config) *Pubsub {
 	return ps
 }
 
-// Publish sends a payload to the specified channel. If a codec is provided,
-// it is applied first to marshal the payload before publishing.
+// Publish sends a payload to the specified channel.
 func (me *Pubsub) Publish(ctx context.Context, channel string, payload []byte) error {
 	me.mu.RLock()
 	defer me.mu.RUnlock()
@@ -57,9 +56,8 @@ func (me *Pubsub) Publish(ctx context.Context, channel string, payload []byte) e
 }
 
 // Subscribe registers a handler for messages on the specified channel.
-// If a codec is provided, it is applied first to unmarshal the payload
-// before passing it to the handler.
-func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.Handler) (pubsub.Subscription, error) {
+// It returns an error when the subscription initiation failes.
+func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.Handler) pubsub.Subscription {
 	sub := &subscription{
 		errs: make(chan error, 10),
 		done: make(chan struct{}),
@@ -80,6 +78,7 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 			close(sub.done)
 			close(sub.errs)
 		}()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -98,7 +97,7 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 		}
 	}()
 
-	return sub, nil
+	return sub
 }
 
 type subscription struct {

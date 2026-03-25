@@ -22,7 +22,7 @@ func PublishWithCodec(ctx context.Context, pub Publisher, channel string, v any,
 }
 
 // SubscribeWithCodec subscribes to a channel and decodes messages using the provided codec before passing them to the handler.
-func SubscribeWithCodec[T any](ctx context.Context, sub Subscriber, channel string, handler CodecHandler[T], codec Codec) (Subscription, error) {
+func SubscribeWithCodec[T any](ctx context.Context, sub Subscriber, channel string, handler CodecHandler[T], codec Codec) Subscription {
 	return sub.Subscribe(ctx, channel, func(ctx context.Context, payload []byte) error {
 		var v T
 		if err := codec.Decode(payload, &v); err != nil {
