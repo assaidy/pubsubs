@@ -35,7 +35,7 @@ type Subscription interface {
 	// Done returns a channel that's closed when the subscription ends.
 	Done() <-chan struct{}
 	// Close terminates the subscription.
-	Close() error
+	Close()
 }
 
 // WaitAll starts a wg.Go() for each subscription that waits for it to finish.
@@ -43,11 +43,14 @@ type Subscription interface {
 func WaitAll(wg *sync.WaitGroup, errorHandler func(error), subscriptions ...Subscription) {
 	for _, sub := range subscriptions {
 		wg.Go(func() {
-			select {
-			case <-sub.Done():
-				return
-			case err := <-sub.Errs():
-				errorHandler(err)
+			defer sub.Close()
+			for {
+				select {
+				case <-sub.Done():
+					return
+				case err := <-sub.Errs():
+					errorHandler(err)
+				}
 			}
 		})
 	}

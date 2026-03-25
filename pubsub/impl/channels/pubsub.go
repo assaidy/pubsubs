@@ -113,8 +113,7 @@ func (me *subscription) Done() <-chan struct{} {
 	return me.done
 }
 
-func (me *subscription) Close() error {
+func (me *subscription) Close() {
 	close(me.errs)
 	close(me.done)
-	return nil
 }
