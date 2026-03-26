@@ -3,6 +3,7 @@ package pubsub
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -35,7 +36,45 @@ type Subscription interface {
 	// Done returns a channel that's closed when the subscription ends.
 	Done() <-chan struct{}
 	// Close terminates the subscription.
-	Close()
+	Close() error
+}
+
+var ErrSubscriptionClosed = errors.New("subscription closed")
+
+// BasicSubscription is a basic implementation for [Subscription]
+type BasicSubscription struct {
+	ErrsChan chan error
+	DoneChan chan struct{}
+	isClosed bool
+	mu       sync.Mutex
+}
+
+// NewBasicSubscription returns an instance of [BasicSubscription]
+// that implements [Subscription]
+func NewBasicSubscription() *BasicSubscription {
+	return &BasicSubscription{
+		ErrsChan: make(chan error, 10),
+		DoneChan: make(chan struct{}),
+	}
+}
+
+func (me *BasicSubscription) Errs() <-chan error {
+	return me.ErrsChan
+}
+
+func (me *BasicSubscription) Done() <-chan struct{} {
+	return me.DoneChan
+}
+
+func (me *BasicSubscription) Close() error {
+	me.mu.Lock()
+	defer me.mu.Unlock()
+	if me.isClosed {
+		return ErrSubscriptionClosed
+	}
+	me.isClosed = true
+	close(me.DoneChan)
+	return nil
 }
 
 // WaitAll starts a wg.Go() for each subscription that waits for it to finish.

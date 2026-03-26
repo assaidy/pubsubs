@@ -1,4 +1,4 @@
-module github.com/assaidy/brokers
+module github.com/assaidy/pubsub
 
 go 1.26.1
 

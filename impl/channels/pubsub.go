@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/assaidy/brokers/pubsub"
+	"github.com/assaidy/pubsub"
 )
 
 type Pubsub struct {
@@ -49,8 +49,11 @@ func (me *Pubsub) Publish(ctx context.Context, channel string, payload []byte) e
 	me.mu.RLock()
 	defer me.mu.RUnlock()
 	for _, sub := range me.subscribers[channel] {
-		// go func() { sub <- payload }()
-		sub <- payload
+		select {
+		case sub <- payload:
+		case <-ctx.Done():
+			return nil
+		}
 	}
 	return nil
 }
@@ -58,39 +61,36 @@ func (me *Pubsub) Publish(ctx context.Context, channel string, payload []byte) e
 // Subscribe registers a handler for messages on the specified channel.
 // It returns an error when the subscription initiation failes.
 func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.Handler) pubsub.Subscription {
-	sub := &subscription{
-		errs: make(chan error, 10),
-		done: make(chan struct{}),
-	}
-
 	subscriber := make(chan []byte, me.config.BufferLength)
 	me.mu.Lock()
 	me.subscribers[channel] = append(me.subscribers[channel], subscriber)
 	me.mu.Unlock()
 
+	sub := pubsub.NewBasicSubscription()
+
 	go func() {
 		defer func() {
 			me.mu.Lock()
-			me.subscribers[channel] = slices.DeleteFunc(me.subscribers[channel], func(s chan<- []byte) bool {
-				return s == subscriber
-			})
+			me.subscribers[channel] = slices.DeleteFunc(
+				me.subscribers[channel],
+				func(s chan<- []byte) bool { return s == subscriber },
+			)
 			me.mu.Unlock()
-			close(sub.done)
-			close(sub.errs)
+			close(sub.ErrsChan)
 		}()
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-sub.done:
+			case <-sub.DoneChan:
 				return
 			case payload := <-subscriber:
 				if err := handler(ctx, payload); err != nil {
 					select {
-					case sub.errs <- err:
+					case sub.ErrsChan <- err:
+					case <-sub.DoneChan:
 					case <-ctx.Done():
-					case <-sub.done:
 					}
 				}
 			}
@@ -98,22 +98,4 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 	}()
 
 	return sub
-}
-
-type subscription struct {
-	errs chan error
-	done chan struct{}
-}
-
-func (me *subscription) Errs() <-chan error {
-	return me.errs
-}
-
-func (me *subscription) Done() <-chan struct{} {
-	return me.done
-}
-
-func (me *subscription) Close() {
-	close(me.errs)
-	close(me.done)
 }

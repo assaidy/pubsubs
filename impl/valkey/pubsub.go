@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/assaidy/brokers/pubsub"
+	"github.com/assaidy/pubsub"
 	"github.com/valkey-io/valkey-go"
 )
 
@@ -29,11 +29,7 @@ func (me *Pubsub) Publish(ctx context.Context, channel string, payload []byte) e
 
 // Subscribe registers a handler for messages on the specified channel.
 func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.Handler) pubsub.Subscription {
-	sub := &subscription{
-		errsChan:  make(chan error, 10),
-		doneChan:  make(chan struct{}),
-		closeChan: make(chan struct{}),
-	}
+	sub := pubsub.NewBasicSubscription()
 
 	go func() {
 		var wg sync.WaitGroup
@@ -41,8 +37,7 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 		defer func() {
 			receiveCtxCancel() // cancel the receiving when the user closes the subscription manually.
 			wg.Wait()          // wait for the receiving to stop.
-			close(sub.doneChan)
-			close(sub.errsChan)
+			close(sub.ErrsChan)
 		}()
 
 		wg.Go(func() {
@@ -51,36 +46,17 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 				me.client.B().Subscribe().Channel(channel).Build(),
 				func(msg valkey.PubSubMessage) {
 					if err := handler(ctx, []byte(msg.Message)); err != nil {
-						sub.errsChan <- err
+						sub.ErrsChan <- err
 					}
 				},
 			)
 		})
 
 		select {
-		case <-sub.closeChan:
+		case <-sub.DoneChan:
 		case <-ctx.Done():
 		}
 	}()
 
 	return sub
-}
-
-type subscription struct {
-	errsChan  chan error
-	doneChan  chan struct{}
-	closeChan chan struct{}
-	once      sync.Once
-}
-
-func (me *subscription) Errs() <-chan error {
-	return me.errsChan
-}
-
-func (me *subscription) Done() <-chan struct{} {
-	return me.doneChan
-}
-
-func (me *subscription) Close() {
-	me.once.Do(func() { close(me.closeChan) })
 }
