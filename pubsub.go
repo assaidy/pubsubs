@@ -4,6 +4,7 @@ package pubsub
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 )
 
@@ -87,10 +88,19 @@ func WaitAll(wg *sync.WaitGroup, errorHandler func(error), subscriptions ...Subs
 				select {
 				case <-sub.Done():
 					return
-				case err := <-sub.Errs():
+				case err, ok := <-sub.Errs():
+					if !ok {
+						return
+					}
 					errorHandler(err)
 				}
 			}
 		})
+	}
+}
+
+func DefaultErrorHandler(logger *slog.Logger) func(error) {
+	return func(err error) {
+		logger.Error("subscription error", "error", err)
 	}
 }

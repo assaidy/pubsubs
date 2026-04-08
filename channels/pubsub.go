@@ -8,6 +8,8 @@ import (
 	"github.com/assaidy/pubsub"
 )
 
+var _ pubsub.Pubsub = (*Pubsub)(nil)
+
 type Pubsub struct {
 	subscribers map[string][]chan<- []byte
 	config      Config

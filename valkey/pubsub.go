@@ -8,17 +8,17 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
+var _ pubsub.Pubsub = (*Pubsub)(nil)
+
 type Pubsub struct {
 	client valkey.Client
 }
 
 // New creates a new in-memory pub/sub instance backed by go's channels.
 func New(client valkey.Client) *Pubsub {
-	ps := &Pubsub{
+	return &Pubsub{
 		client: client,
 	}
-	_ = pubsub.Pubsub(ps)
-	return ps
 }
 
 // Publish sends a payload to the specified channel. If a codec is provided,
