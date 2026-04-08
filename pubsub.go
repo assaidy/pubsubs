@@ -44,18 +44,26 @@ var ErrSubscriptionClosed = errors.New("subscription closed")
 
 // BasicSubscription is a basic implementation for [Subscription]
 type BasicSubscription struct {
+	// ErrsChan is a channel that receives errors from the message handler.
 	ErrsChan chan error
+	// DoneChan is a channel that is closed when the subscription ends.
+	// Callers can wait on this channel to know when the subscription is finished.
 	DoneChan chan struct{}
-	isClosed bool
-	mu       sync.Mutex
+	// CloseFinishedChan is used to ensure Close() blocks until the receiver goroutine
+	// has stopped. The receiver must close this channel after it stops receiving.
+	// Close() waits on this channel before returning.
+	CloseFinishedChan chan struct{}
+	isClosed          bool
+	mu                sync.Mutex
 }
 
 // NewBasicSubscription returns an instance of [BasicSubscription]
 // that implements [Subscription]
 func NewBasicSubscription() *BasicSubscription {
 	return &BasicSubscription{
-		ErrsChan: make(chan error, 10),
-		DoneChan: make(chan struct{}),
+		ErrsChan:          make(chan error, 10),
+		DoneChan:          make(chan struct{}, 1),
+		CloseFinishedChan: make(chan struct{}, 1),
 	}
 }
 
@@ -73,8 +81,9 @@ func (me *BasicSubscription) Close() error {
 	if me.isClosed {
 		return ErrSubscriptionClosed
 	}
-	me.isClosed = true
 	close(me.DoneChan)
+	<-me.CloseFinishedChan
+	me.isClosed = true
 	return nil
 }
 

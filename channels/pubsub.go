@@ -79,6 +79,7 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 			)
 			me.mu.Unlock()
 			close(sub.ErrsChan)
+			close(sub.CloseFinishedChan)
 		}()
 
 		for {

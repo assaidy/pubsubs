@@ -41,6 +41,7 @@ func (me *Pubsub) Subscribe(ctx context.Context, channel string, handler pubsub.
 		}()
 
 		wg.Go(func() {
+			defer close(sub.CloseFinishedChan)
 			me.client.Receive(
 				receiveCtx,
 				me.client.B().Subscribe().Channel(channel).Build(),
