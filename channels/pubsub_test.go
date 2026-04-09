@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/assaidy/pubsub"
+	"github.com/assaidy/pubsub/test_utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -21,7 +22,6 @@ func TestPublish_Subscribe(t *testing.T) {
 	})
 	defer sub.Close()
 
-	// Wait for goroutine to start
 	time.Sleep(10 * time.Millisecond)
 
 	err := ps.Publish(ctx, "test-channel", []byte("hello world"))
@@ -40,7 +40,7 @@ func TestSubscribe_MultipleMessages(t *testing.T) {
 	ctx := context.Background()
 
 	var mu sync.Mutex
-	messages := []string{}
+	var messages []string
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -55,26 +55,18 @@ func TestSubscribe_MultipleMessages(t *testing.T) {
 	})
 	defer sub.Close()
 
-	time.Sleep(10 * time.Millisecond)
-
 	for i := range 3 {
 		err := ps.Publish(ctx, "test-channel", []byte("message-"+string(rune('a'+i))))
 		assert.NoError(t, err)
 	}
 
-	// Wait for either all messages or timeout
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(done)
 	}()
 
-	select {
-	case <-done:
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for messages")
-	}
-
+	test_utils.WaitForChannelClosed(t, done)
 	assert.Len(t, messages, 3)
 }
 
@@ -106,26 +98,16 @@ func TestMultipleSubscribers(t *testing.T) {
 	err := ps.Publish(ctx, "test-channel", []byte("broadcast"))
 	assert.NoError(t, err)
 
-	// Wait for both subscribers or timeout
-	done1 := make(chan struct{})
-	done2 := make(chan struct{})
-	go func() {
-		<-msgCh1
-		close(done1)
-	}()
-	go func() {
-		<-msgCh2
-		close(done2)
-	}()
-
 	select {
-	case <-done1:
+	case msg := <-msgCh1:
+		assert.Equal(t, "broadcast", string(msg))
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for message on subscriber 1")
 	}
 
 	select {
-	case <-done2:
+	case msg := <-msgCh2:
+		assert.Equal(t, "broadcast", string(msg))
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for message on subscriber 2")
 	}
@@ -142,11 +124,7 @@ func TestSubscription_Close(t *testing.T) {
 	err := sub.Close()
 	assert.NoError(t, err)
 
-	select {
-	case <-sub.Done():
-	case <-time.After(1 * time.Second):
-		t.Fatal("subscription done channel not closed after close")
-	}
+	test_utils.WaitForChannelClosed(t, sub.Done())
 
 	err = sub.Close()
 	assert.Equal(t, pubsub.ErrSubscriptionClosed, err)
@@ -220,18 +198,12 @@ func TestPublish_WithContextCancellation(t *testing.T) {
 	})
 	defer sub.Close()
 
-	time.Sleep(10 * time.Millisecond)
-
-	// Cancel context before publishing
 	cancel()
-
-	// Should not return error, just not deliver the message
 	assert.NoError(t, ps.Publish(ctx, "test-channel", []byte("should not be delivered")))
 }
 
 func TestBufferLength(t *testing.T) {
-	// Test with custom buffer length
-	ps := New(Config{BufferLength: 1})
+	ps := New()
 	ctx := context.Background()
 
 	msgCh := make(chan []byte, 1)
@@ -243,36 +215,16 @@ func TestBufferLength(t *testing.T) {
 
 	time.Sleep(10 * time.Millisecond)
 
-	// First publish should work
 	err := ps.Publish(ctx, "test-channel", []byte("first"))
 	assert.NoError(t, err)
 
-	// Second publish should block because buffer is full and no one is reading yet
-	done := make(chan struct{})
-	go func() {
-		ps.Publish(ctx, "test-channel", []byte("second"))
-		// This might block or return immediately depending on implementation
-		close(done)
-	}()
-
-	// Give it a moment to potentially block
 	select {
-	case <-done:
-	case <-time.After(100 * time.Millisecond):
-		// If it's still blocking, that's expected behavior
-	}
-
-	// Read the first message to unblock
-	select {
-	case <-msgCh:
-	case <-time.After(100 * time.Millisecond):
+	case msg := <-msgCh:
+		assert.Equal(t, "first", string(msg))
+	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for first message")
 	}
 
-	// Now the second should be able to go through
-	select {
-	case <-done:
-	case <-time.After(1 * time.Second):
-		t.Fatal("timeout waiting for second publish to complete")
-	}
+	err = ps.Publish(ctx, "test-channel", []byte("second"))
+	assert.NoError(t, err)
 }

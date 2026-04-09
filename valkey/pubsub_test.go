@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/assaidy/pubsub"
+	"github.com/assaidy/pubsub/test_utils"
 	"github.com/stretchr/testify/assert"
 	testcontainersvalkey "github.com/testcontainers/testcontainers-go/modules/valkey"
 	"github.com/valkey-io/valkey-go"
@@ -45,7 +46,6 @@ func TestPublish_Subscribe(t *testing.T) {
 	})
 	defer sub.Close()
 
-	// wait for the subscribe command to complete
 	time.Sleep(50 * time.Millisecond)
 
 	err := ps.Publish(ctx, "test-channel", []byte("hello world"))
@@ -67,7 +67,7 @@ func TestSubscribe_MultipleMessages(t *testing.T) {
 	ctx := context.Background()
 
 	var mu sync.Mutex
-	messages := []string{}
+	var messages []string
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -89,12 +89,13 @@ func TestSubscribe_MultipleMessages(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	select {
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for messages")
-	default:
-	}
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
 
+	test_utils.WaitForChannelClosed(t, done)
 	assert.Len(t, messages, 3)
 }
 
@@ -130,15 +131,15 @@ func TestMultipleSubscribers(t *testing.T) {
 	assert.NoError(t, err)
 
 	select {
-	case msg1 := <-msgCh1:
-		assert.Equal(t, "broadcast", string(msg1))
+	case msg := <-msgCh1:
+		assert.Equal(t, "broadcast", string(msg))
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for message on subscriber 1")
 	}
 
 	select {
-	case msg2 := <-msgCh2:
-		assert.Equal(t, "broadcast", string(msg2))
+	case msg := <-msgCh2:
+		assert.Equal(t, "broadcast", string(msg))
 	case <-time.After(2 * time.Second):
 		t.Fatal("timeout waiting for message on subscriber 2")
 	}
@@ -158,11 +159,7 @@ func TestSubscription_Close(t *testing.T) {
 	err := sub.Close()
 	assert.NoError(t, err)
 
-	select {
-	case <-sub.Done():
-	case <-time.After(1 * time.Second):
-		t.Fatal("subscription done channel not closed after close")
-	}
+	test_utils.WaitForChannelClosed(t, sub.Done())
 
 	err = sub.Close()
 	assert.Equal(t, pubsub.ErrSubscriptionClosed, err)
