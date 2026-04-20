@@ -1,4 +1,4 @@
-module github.com/assaidy/pubsub
+module github.com/assaidy/pubsubs
 
 go 1.26.1
 
