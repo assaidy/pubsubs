@@ -38,6 +38,7 @@ type Subscription interface {
 	Done() <-chan struct{}
 	// Close terminates the subscription.
 	Close() error
+	// TODO: Add some sort of acknowledgment mechanisms to ensure messages are handled, so it's used with kafka and rmq.
 }
 
 var ErrSubscriptionClosed = errors.New("subscription closed")
@@ -78,6 +79,7 @@ func (me *BasicSubscription) Done() <-chan struct{} {
 func (me *BasicSubscription) Close() error {
 	me.mu.Lock()
 	defer me.mu.Unlock()
+
 	if me.isClosed {
 		return ErrSubscriptionClosed
 	}
@@ -93,6 +95,7 @@ func WaitAll(wg *sync.WaitGroup, errorHandler func(error), subscriptions ...Subs
 	for _, sub := range subscriptions {
 		wg.Go(func() {
 			defer sub.Close()
+
 			for {
 				select {
 				case <-sub.Done():
