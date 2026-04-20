@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/assaidy/pubsub"
-	"github.com/assaidy/pubsub/test_utils"
+	"github.com/assaidy/pubsubs"
+	"github.com/assaidy/pubsubs/test_utils"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	testcontainersredis "github.com/testcontainers/testcontainers-go/modules/redis"

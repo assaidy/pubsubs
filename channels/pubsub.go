@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/assaidy/pubsub"
+	"github.com/assaidy/pubsubs"
 )
 
 var _ pubsub.Pubsub = (*Pubsub)(nil)

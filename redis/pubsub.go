@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/assaidy/pubsub"
+	"github.com/assaidy/pubsubs"
 	"github.com/redis/go-redis/v9"
 )
 

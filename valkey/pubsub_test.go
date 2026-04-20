@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/assaidy/pubsub"
-	"github.com/assaidy/pubsub/test_utils"
+	"github.com/assaidy/pubsubs"
+	"github.com/assaidy/pubsubs/test_utils"
 	"github.com/stretchr/testify/assert"
 	testcontainersvalkey "github.com/testcontainers/testcontainers-go/modules/valkey"
 	"github.com/valkey-io/valkey-go"
